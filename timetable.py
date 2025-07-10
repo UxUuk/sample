@@ -1,58 +1,108 @@
 import json
-from itertools import cycle
+from typing import List, Dict
+from collections import defaultdict
+
+from openpyxl import load_workbook
 
 PERIODS = ["E", "S", "A", "B", "C"]
 MAX_STUDENTS_PER_TEACHER = 2
 
 
-def create_schedule():
-    days_input = input("Enter days separated by commas (e.g., Mon,Tue): ")
-    days = [d.strip() for d in days_input.split(',') if d.strip()]
-    teachers_input = input("Enter teacher names separated by commas: ")
-    teachers = [t.strip() for t in teachers_input.split(',') if t.strip()]
-    students_input = input("Enter student names separated by commas: ")
-    students = [s.strip() for s in students_input.split(',') if s.strip()]
+class Teacher:
+    def __init__(self, name: str, periods: List[str], subjects: List[str]):
+        self.name = name
+        self.periods = [p.strip() for p in periods if p.strip() in PERIODS]
+        self.subjects = [s.strip() for s in subjects if s.strip()]
 
-    # Prepare an endless cycle of student pairs
-    pairs = []
-    for i in range(0, len(students), MAX_STUDENTS_PER_TEACHER):
-        pairs.append(students[i:i + MAX_STUDENTS_PER_TEACHER])
-    if not pairs:
-        pairs.append([])
-    pair_cycle = cycle(pairs)
 
-    schedule = {day: {p: {} for p in PERIODS} for day in days}
-    for day in days:
-        for period in PERIODS:
+class Student:
+    def __init__(self, name: str, periods: List[str], count: int, subject: str):
+        self.name = name
+        self.periods = [p.strip() for p in periods if p.strip() in PERIODS]
+        self.count = int(count)
+        self.subject = subject.strip()
+
+
+def load_teachers(filename: str) -> List[Teacher]:
+    wb = load_workbook(filename)
+    ws = wb.active
+    teachers = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row[0]:
+            continue
+        name = str(row[0]).strip()
+        periods = str(row[1]).split(',') if row[1] else []
+        subjects = str(row[2]).split(',') if row[2] else []
+        teachers.append(Teacher(name, periods, subjects))
+    return teachers
+
+
+def load_students(filename: str) -> List[Student]:
+    wb = load_workbook(filename)
+    ws = wb.active
+    students = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row[0]:
+            continue
+        name = str(row[0]).strip()
+        periods = str(row[1]).split(',') if row[1] else []
+        count = int(row[2]) if row[2] else 0
+        subject = str(row[3]) if row[3] else ''
+        students.append(Student(name, periods, count, subject))
+    return students
+
+
+def create_schedule(teachers: List[Teacher], students: List[Student]) -> Dict[str, Dict[str, List[str]]]:
+    schedule: Dict[str, Dict[str, List[str]]] = {p: {} for p in PERIODS}
+    # place teachers
+    for teacher in teachers:
+        for period in teacher.periods:
+            schedule[period][teacher.name] = []
+    # assign students
+    for student in students:
+        assigned = 0
+        for period in student.periods:
+            if assigned >= student.count:
+                break
+            # find teacher for subject with room
             for teacher in teachers:
-                schedule[day][period][teacher] = list(next(pair_cycle))
+                if period not in teacher.periods:
+                    continue
+                if student.subject not in teacher.subjects:
+                    continue
+                current = schedule[period].setdefault(teacher.name, [])
+                if len(current) < MAX_STUDENTS_PER_TEACHER:
+                    current.append(student.name)
+                    assigned += 1
+                    break
     return schedule
 
 
-def save_schedule(schedule, filename):
+def print_schedule(schedule: Dict[str, Dict[str, List[str]]]):
+    for period in PERIODS:
+        print(f"[{period}]")
+        if period not in schedule or not schedule[period]:
+            print("  (no teachers)")
+            continue
+        for teacher, students in schedule[period].items():
+            student_names = ', '.join(students) if students else '---'
+            print(f"  {teacher}: {student_names}")
+        print()
+
+
+def save_schedule(schedule: Dict[str, Dict[str, List[str]]], filename: str = 'schedule.json'):
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(schedule, f, ensure_ascii=False, indent=2)
     print(f"Schedule saved to {filename}")
 
 
-def print_schedule(schedule):
-    for day, periods in schedule.items():
-        print(f"=== {day} ===")
-        for period in PERIODS:
-            print(f"[{period}]")
-            for teacher, students in schedule[day][period].items():
-                student_names = ', '.join(students) if students else '---'
-                print(f"  {teacher}: {student_names}")
-        print()
-
-
 def main():
-    schedule = create_schedule()
+    teachers = load_teachers('teachers.xlsx')
+    students = load_students('students.xlsx')
+    schedule = create_schedule(teachers, students)
     print_schedule(schedule)
-    if input("Save schedule to file? (y/n): ").lower() == 'y':
-        filename = input("Filename (default schedule.json): ") or "schedule.json"
-        save_schedule(schedule, filename)
+    save_schedule(schedule)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
