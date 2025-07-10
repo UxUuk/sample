@@ -1,7 +1,7 @@
 import json
 from typing import Dict, List, Tuple
 
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 
 PERIODS = ["E", "S", "A", "B", "C"]
 MAX_STUDENTS_PER_TEACHER = 2
@@ -145,9 +145,24 @@ def print_schedule(schedule: Dict[str, Dict[str, Dict[str, List[Tuple[str, str]]
         print()
 
 
-def save_schedule(schedule: Dict[str, Dict[str, Dict[str, List[Tuple[str, str]]]]], filename: str = 'schedule.json'):
+def save_schedule_json(schedule: Dict[str, Dict[str, Dict[str, List[Tuple[str, str]]]]], filename: str = 'schedule.json'):
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(schedule, f, ensure_ascii=False, indent=2)
+    print(f"Schedule saved to {filename}")
+
+
+def save_schedule_excel(schedule: Dict[str, Dict[str, Dict[str, List[Tuple[str, str]]]]], filename: str = 'schedule.xlsx'):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Schedule'
+    ws.append(['Day', 'Period', 'Teacher', 'Students'])
+    for day in sorted(schedule.keys()):
+        for period in PERIODS:
+            teachers = schedule[day].get(period, {})
+            for teacher, students in teachers.items():
+                stu_text = ', '.join(f'{n}({sub})' for n, sub in students)
+                ws.append([day, period, teacher, stu_text])
+    wb.save(filename)
     print(f"Schedule saved to {filename}")
 
 
@@ -156,7 +171,8 @@ def main():
     students = load_students('students.xlsx')
     schedule = create_schedule(teachers, students)
     print_schedule(schedule)
-    save_schedule(schedule)
+    save_schedule_json(schedule)
+    save_schedule_excel(schedule)
 
 
 if __name__ == '__main__':

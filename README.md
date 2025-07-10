@@ -49,5 +49,5 @@ python real_time_face_recognition.py
 python timetable.py
 ```
 
-実行すると Excel ファイルを読み込み、講師 1 人につき各コマ最大 2 名まで生徒を割り当てた時間割を表示し、`schedule.json` として保存します。
+実行すると Excel ファイルを読み込み、講師 1 人につき各コマ最大 2 名まで生徒を割り当てた時間割を表示します。結果は `schedule.json` と `schedule.xlsx` に保存されます。
 
